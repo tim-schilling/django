@@ -30,7 +30,7 @@ class BandAdmin(admin.ModelAdmin):
                 continue
             # Do not return the concert inline
             if isinstance(inline, SongInline):
-                yield inline.get_formset(request, obj)
+                yield inline.get_formset(request, obj), inline
 
 
 site.register(Band, BandAdmin)

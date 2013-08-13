@@ -504,7 +504,7 @@ class ModelAdmin(BaseModelAdmin):
 
     def get_formsets(self, request, obj=None):
         for inline in self.get_inline_instances(request):
-            yield inline.get_formset(request, obj)
+            yield inline.get_formset(request, obj), inline
 
     def get_paginator(self, request, queryset, per_page, orphans=0, allow_empty_first_page=True):
         return self.paginator(queryset, per_page, orphans, allow_empty_first_page)
@@ -941,7 +941,7 @@ class ModelAdmin(BaseModelAdmin):
                 form_validated = False
                 new_object = self.model()
             prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request), inline_instances):
+            for FormSet, inline in self.get_formsets(request):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -969,7 +969,7 @@ class ModelAdmin(BaseModelAdmin):
                     initial[k] = initial[k].split(",")
             form = ModelForm(initial=initial)
             prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request), inline_instances):
+            for FormSet, inline in self.get_formsets(request):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -1029,7 +1029,7 @@ class ModelAdmin(BaseModelAdmin):
 
         ModelForm = self.get_form(request, obj)
         formsets = []
-        inline_instances = self.get_inline_instances(request)
+        used_inline_instances = []
         if request.method == 'POST':
             form = ModelForm(request.POST, request.FILES, instance=obj)
             if form.is_valid():
@@ -1039,7 +1039,7 @@ class ModelAdmin(BaseModelAdmin):
                 form_validated = False
                 new_object = obj
             prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request, new_object), inline_instances):
+            for FormSet, inline in self.get_formsets(request, new_object):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -1049,6 +1049,7 @@ class ModelAdmin(BaseModelAdmin):
                                   queryset=inline.queryset(request))
 
                 formsets.append(formset)
+                used_inline_instances.append(inline)
 
             if all_valid(formsets) and form_validated:
                 self.save_model(request, new_object, form, True)
@@ -1060,7 +1061,7 @@ class ModelAdmin(BaseModelAdmin):
         else:
             form = ModelForm(instance=obj)
             prefixes = {}
-            for FormSet, inline in zip(self.get_formsets(request, obj), inline_instances):
+            for FormSet, inline in self.get_formsets(request, obj):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -1068,6 +1069,7 @@ class ModelAdmin(BaseModelAdmin):
                 formset = FormSet(instance=obj, prefix=prefix,
                                   queryset=inline.queryset(request))
                 formsets.append(formset)
+                used_inline_instances.append(inline)
 
         adminForm = helpers.AdminForm(form, self.get_fieldsets(request, obj),
             self.get_prepopulated_fields(request, obj),
@@ -1076,7 +1078,7 @@ class ModelAdmin(BaseModelAdmin):
         media = self.media + adminForm.media
 
         inline_admin_formsets = []
-        for inline, formset in zip(inline_instances, formsets):
+        for inline, formset in zip(used_inline_instances, formsets):
             fieldsets = list(inline.get_fieldsets(request, obj))
             readonly = list(inline.get_readonly_fields(request, obj))
             prepopulated = dict(inline.get_prepopulated_fields(request, obj))
