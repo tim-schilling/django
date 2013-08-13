@@ -18,7 +18,7 @@ from django.test import TestCase
 from django.test.utils import override_settings
 from django.utils import unittest
 
-from .models import Band, Concert, ValidationTestModel, ValidationTestInlineModel
+from .models import Band, Concert, Song, ValidationTestModel, ValidationTestInlineModel
 
 
 class MockRequest(object):
@@ -33,6 +33,8 @@ request.user = MockSuperUser()
 
 
 class ModelAdminTests(TestCase):
+    urls = "regressiontests.modeladmin.urls"
+    fixtures = ['users.xml']
 
     def setUp(self):
         self.band = Band.objects.create(
@@ -41,6 +43,12 @@ class ModelAdminTests(TestCase):
             sign_date=date(1965, 1, 1),
         )
         self.site = AdminSite()
+        # set TEMPLATE_DEBUG to True to ensure {% include %} will raise
+        # exceptions since that is how inlines are rendered and #9498 will
+        # bubble up if it is an issue.
+        self.original_template_debug = settings.TEMPLATE_DEBUG
+        settings.TEMPLATE_DEBUG = True
+        self.client.login(username='super', password='secret')
 
     # form/fields/fieldsets interaction ##############################
 
@@ -494,6 +502,15 @@ class ModelAdminTests(TestCase):
             list(ma.get_formsets(request))[0]().forms[0].fields.keys(),
             ['extra', 'transport', 'id', 'DELETE', 'main_band'])
 
+    def test_override_inlines_with_get_formsets(self):
+        """
+        Ensure that the get_formsets don't have to yield an inline and it's formset defined in the
+        inlines property.
+        Refs #20702
+        """
+        url = '/modeladmin/admin/modeladmin/band/%d/' % self.band.pk
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
 
 class ValidationTests(unittest.TestCase):
     def test_validation_only_runs_in_debug(self):
