@@ -274,7 +274,7 @@ class GenericInlineModelAdminTest(TestCase):
 
         ma = EpisodeAdmin(Episode, self.site)
         self.assertEqual(
-            list(ma.get_formsets(request))[0][0]().forms[0].fields.keys(),
+            list(ma.get_formsets(request))[0]().forms[0].fields.keys(),
             ['keywords', 'id', 'DELETE'])
 
     def test_custom_form_meta_exclude(self):
@@ -304,7 +304,7 @@ class GenericInlineModelAdminTest(TestCase):
 
         ma = EpisodeAdmin(Episode, self.site)
         self.assertEqual(
-            list(ma.get_formsets(request))[0][0]().forms[0].fields.keys(),
+            list(ma.get_formsets(request))[0]().forms[0].fields.keys(),
             ['url', 'keywords', 'id', 'DELETE'])
 
         # Then, only with `ModelForm`  -----------------
@@ -320,5 +320,5 @@ class GenericInlineModelAdminTest(TestCase):
 
         ma = EpisodeAdmin(Episode, self.site)
         self.assertEqual(
-            list(ma.get_formsets(request))[0][0]().forms[0].fields.keys(),
+            list(ma.get_formsets(request))[0]().forms[0].fields.keys(),
             ['description', 'keywords', 'id', 'DELETE'])

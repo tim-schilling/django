@@ -502,9 +502,22 @@ class ModelAdmin(BaseModelAdmin):
             self.get_changelist_form(request), extra=0,
             fields=self.list_editable, **defaults)
 
-    def get_formsets(self, request, obj=None):
+    def get_formsets_with_inlines(self, request, obj=None):
+        """
+        Fetches the formsets for each of the inline instances.
+        :return: Tuple (formset, inline)
+        """
         for inline in self.get_inline_instances(request):
             yield inline.get_formset(request, obj), inline
+
+    def get_formsets(self, request, obj=None):
+        """
+        Fetches the formsets for each of the inline instances.
+
+        Exists for backwards compatibility.
+        """
+        for formset, inline in self.get_formsets_with_inlines(request, obj):
+            yield formset
 
     def get_paginator(self, request, queryset, per_page, orphans=0, allow_empty_first_page=True):
         return self.paginator(queryset, per_page, orphans, allow_empty_first_page)
@@ -941,7 +954,7 @@ class ModelAdmin(BaseModelAdmin):
                 form_validated = False
                 new_object = self.model()
             prefixes = {}
-            for FormSet, inline in self.get_formsets(request):
+            for FormSet, inline in self.get_formsets_with_inlines(request):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -969,7 +982,7 @@ class ModelAdmin(BaseModelAdmin):
                     initial[k] = initial[k].split(",")
             form = ModelForm(initial=initial)
             prefixes = {}
-            for FormSet, inline in self.get_formsets(request):
+            for FormSet, inline in self.get_formsets_with_inlines(request):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -1039,7 +1052,7 @@ class ModelAdmin(BaseModelAdmin):
                 form_validated = False
                 new_object = obj
             prefixes = {}
-            for FormSet, inline in self.get_formsets(request, new_object):
+            for FormSet, inline in self.get_formsets_with_inlines(request, new_object):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
@@ -1061,7 +1074,7 @@ class ModelAdmin(BaseModelAdmin):
         else:
             form = ModelForm(instance=obj)
             prefixes = {}
-            for FormSet, inline in self.get_formsets(request, obj):
+            for FormSet, inline in self.get_formsets_with_inlines(request, obj):
                 prefix = FormSet.get_default_prefix()
                 prefixes[prefix] = prefixes.get(prefix, 0) + 1
                 if prefixes[prefix] != 1 or not prefix:
