@@ -219,3 +219,9 @@ work until Django 1.9.
 it will go through a regular deprecation path. This attribute was mostly used
 by methods that bypassed ``ModelAdmin.get_fieldsets()`` but this was considered
 a bug and has been addressed.
+
+``get_formsets`` method on ``ModelAdmin.``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+``ModelAdmin.get_formsets`` was deprecated in favor of ``ModelAdmin.get_formsets_with_inlines``,
+in order to handle the case of limiting the inlines of a ``ModelAdmin`` when fetching the formsets
+of the inlines.
