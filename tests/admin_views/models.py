@@ -115,7 +115,7 @@ class ModelWithStringPrimaryKey(models.Model):
 @python_2_unicode_compatible
 class Color(models.Model):
     value = models.CharField(max_length=10)
-    warm = models.BooleanField()
+    warm = models.BooleanField(default=False)
     def __str__(self):
         return self.value
 
@@ -144,7 +144,7 @@ class Actor(models.Model):
 
 @python_2_unicode_compatible
 class Inquisition(models.Model):
-    expected = models.BooleanField()
+    expected = models.BooleanField(default=False)
     leader = models.ForeignKey(Actor)
     country = models.CharField(max_length=20)
 
@@ -376,7 +376,7 @@ class Link(models.Model):
 
 class PrePopulatedPost(models.Model):
     title = models.CharField(max_length=100)
-    published = models.BooleanField()
+    published = models.BooleanField(default=False)
     slug = models.SlugField()
 
 
@@ -495,7 +495,7 @@ class Topping(models.Model):
 
 class Pizza(models.Model):
     name = models.CharField(max_length=20)
-    toppings = models.ManyToManyField('Topping')
+    toppings = models.ManyToManyField('Topping', related_name='pizzas')
 
 
 class Album(models.Model):
@@ -607,7 +607,7 @@ class PrePopulatedPostLargeSlug(models.Model):
     the javascript (ie, using THOUSAND_SEPARATOR ends up with maxLength=1,000)
     """
     title = models.CharField(max_length=100)
-    published = models.BooleanField()
+    published = models.BooleanField(default=False)
     slug = models.SlugField(max_length=1000)
 
 class AdminOrderedField(models.Model):
@@ -674,6 +674,12 @@ class UndeletableObject(models.Model):
     """
     name = models.CharField(max_length=255)
 
+class UnchangeableObject(models.Model):
+    """
+    Model whose change_view is disabled in admin
+    Refs #20640.
+    """
+
 class UserMessenger(models.Model):
     """
     Dummy class for testing message_user functions on ModelAdmin
@@ -687,3 +693,14 @@ class Simple(models.Model):
 class Choice(models.Model):
     choice = models.IntegerField(blank=True, null=True,
         choices=((1, 'Yes'), (0, 'No'), (None, 'No opinion')))
+
+class _Manager(models.Manager):
+    def get_queryset(self):
+        return super(_Manager, self).get_queryset().filter(pk__gt=1)
+
+class FilteredManager(models.Model):
+    def __str__(self):
+        return "PK=%d" % self.pk
+
+    pk_gt_1 = _Manager()
+    objects = models.Manager()

@@ -5,6 +5,7 @@ from __future__ import unicode_literals
 
 import inspect
 import os
+import re
 import shutil
 import sys
 from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
@@ -13,6 +14,7 @@ from unittest import skipIf
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.urlresolvers import reverse
+from django.template.base import TemplateDoesNotExist
 from django.test import TestCase, RequestFactory
 from django.test.utils import (override_settings, setup_test_template_loader,
     restore_template_loaders)
@@ -22,7 +24,8 @@ from django.views.debug import ExceptionReporter
 from .. import BrokenException, except_args
 from ..views import (sensitive_view, non_sensitive_view, paranoid_view,
     custom_exception_reporter_filter_view, sensitive_method_view,
-    sensitive_args_function_caller, sensitive_kwargs_function_caller)
+    sensitive_args_function_caller, sensitive_kwargs_function_caller,
+    multivalue_dict_key_error)
 
 
 @override_settings(DEBUG=True, TEMPLATE_DEBUG=True)
@@ -69,6 +72,21 @@ class DebugViewTests(TestCase):
             self.assertRaises(BrokenException, self.client.get,
                 reverse('view_exception', args=(n,)))
 
+    def test_non_l10ned_numeric_ids(self):
+        """
+        Numeric IDs and fancy traceback context blocks line numbers shouldn't be localized.
+        """
+        with self.settings(DEBUG=True, USE_L10N=True):
+            response = self.client.get('/views/raises500/')
+            # We look for a HTML fragment of the form
+            # '<div class="context" id="c38123208">', not '<div class="context" id="c38,123,208"'
+            self.assertContains(response, '<div class="context" id="', status_code=500)
+            match = re.search(b'<div class="context" id="(?P<id>[^"]+)">', response.content)
+            self.assertFalse(match is None)
+            id_repr = match.group('id')
+            self.assertFalse(re.search(b'[^c\d]', id_repr),
+                             "Numeric IDs in debug response HTML page shouldn't be localized (value: %s)." % id_repr)
+
     def test_template_exceptions(self):
         for n in range(len(except_args)):
             try:
@@ -112,6 +130,12 @@ class DebugViewTests(TestCase):
             self.assertContains(response, "%s (Not a file)" % template_path, status_code=500, count=1)
         finally:
             shutil.rmtree(template_path)
+
+    def test_no_template_source_loaders(self):
+        """
+        Make sure if you don't specify a template, the debug view doesn't blow up.
+        """
+        self.assertRaises(TemplateDoesNotExist, self.client.get, '/render_no_template/')
 
 
 class ExceptionReporterTests(TestCase):
@@ -259,17 +283,17 @@ class PlainTextReportTests(TestCase):
         "An exception report can be generated for just a request"
         request = self.rf.get('/test_view/')
         reporter = ExceptionReporter(request, None, None, None)
-        text = reporter.get_traceback_text()
+        reporter.get_traceback_text()
 
     def test_request_and_message(self):
         "A message can be provided in addition to a request"
         request = self.rf.get('/test_view/')
         reporter = ExceptionReporter(request, None, "I'm a little teapot", None)
-        text = reporter.get_traceback_text()
+        reporter.get_traceback_text()
 
     def test_message_only(self):
         reporter = ExceptionReporter(None, None, "I'm a little teapot", None)
-        text = reporter.get_traceback_text()
+        reporter.get_traceback_text()
 
 
 class ExceptionReportTestMixin(object):
@@ -353,7 +377,7 @@ class ExceptionReportTestMixin(object):
         with self.settings(ADMINS=(('Admin', 'admin@fattie-breakie.com'),)):
             mail.outbox = [] # Empty outbox
             request = self.rf.post('/some_url/', self.breakfast_data)
-            response = view(request)
+            view(request)
             self.assertEqual(len(mail.outbox), 1)
             email = mail.outbox[0]
 
@@ -386,7 +410,7 @@ class ExceptionReportTestMixin(object):
         with self.settings(ADMINS=(('Admin', 'admin@fattie-breakie.com'),)):
             mail.outbox = [] # Empty outbox
             request = self.rf.post('/some_url/', self.breakfast_data)
-            response = view(request)
+            view(request)
             self.assertEqual(len(mail.outbox), 1)
             email = mail.outbox[0]
 
@@ -426,7 +450,7 @@ class ExceptionReportTestMixin(object):
         with self.settings(ADMINS=(('Admin', 'admin@fattie-breakie.com'),)):
             mail.outbox = [] # Empty outbox
             request = self.rf.post('/some_url/', self.breakfast_data)
-            response = view(request)
+            view(request)
             self.assertEqual(len(mail.outbox), 1)
             email = mail.outbox[0]
             # Frames vars are never shown in plain text email reports.
@@ -487,6 +511,19 @@ class ExceptionReporterFilterTests(TestCase, ExceptionReportTestMixin):
         with self.settings(DEBUG=False):
             self.verify_paranoid_response(paranoid_view)
             self.verify_paranoid_email(paranoid_view)
+
+    def test_multivalue_dict_key_error(self):
+        """
+        #21098 -- Ensure that sensitive POST parameters cannot be seen in the
+        error reports for if request.POST['nonexistent_key'] throws an error.
+        """
+        with self.settings(DEBUG=True):
+            self.verify_unsafe_response(multivalue_dict_key_error)
+            self.verify_unsafe_email(multivalue_dict_key_error)
+
+        with self.settings(DEBUG=False):
+            self.verify_safe_response(multivalue_dict_key_error)
+            self.verify_safe_email(multivalue_dict_key_error)
 
     def test_custom_exception_reporter_filter(self):
         """

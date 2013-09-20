@@ -89,7 +89,7 @@ class DefaultFiltersTests(TestCase):
     # The test above fails because of Python 2's float handling. Floats with
     # many zeroes after the decimal point should be passed in as another type
     # such as unicode or Decimal.
-    if not six.PY3:
+    if six.PY2:
         test_floatformat_py2_fail = unittest.expectedFailure(test_floatformat_py2_fail)
 
 
@@ -481,7 +481,7 @@ class DefaultFiltersTests(TestCase):
         @python_2_unicode_compatible
         class ULItem(object):
             def __init__(self, title):
-              self.title = title
+                self.title = title
             def __str__(self):
                 return 'ulitem-%s' % str(self.title)
 
@@ -647,22 +647,21 @@ class DefaultFiltersI18NTests(TransRealMixin, TestCase):
 
     def test_localized_filesizeformat(self):
         # NOTE: \xa0 avoids wrapping between value and unit
-        with self.settings(USE_L10N=True):
-            with translation.override('de', deactivate=True):
-                self.assertEqual(filesizeformat(1023), '1023\xa0Bytes')
-                self.assertEqual(filesizeformat(1024), '1,0\xa0KB')
-                self.assertEqual(filesizeformat(10*1024), '10,0\xa0KB')
-                self.assertEqual(filesizeformat(1024*1024-1), '1024,0\xa0KB')
-                self.assertEqual(filesizeformat(1024*1024), '1,0\xa0MB')
-                self.assertEqual(filesizeformat(1024*1024*50), '50,0\xa0MB')
-                self.assertEqual(filesizeformat(1024*1024*1024-1), '1024,0\xa0MB')
-                self.assertEqual(filesizeformat(1024*1024*1024), '1,0\xa0GB')
-                self.assertEqual(filesizeformat(1024*1024*1024*1024), '1,0\xa0TB')
-                self.assertEqual(filesizeformat(1024*1024*1024*1024*1024),
-                                  '1,0\xa0PB')
-                self.assertEqual(filesizeformat(1024*1024*1024*1024*1024*2000),
-                                  '2000,0\xa0PB')
-                self.assertEqual(filesizeformat(complex(1,-1)), '0\xa0Bytes')
-                self.assertEqual(filesizeformat(""), '0\xa0Bytes')
-                self.assertEqual(filesizeformat("\N{GREEK SMALL LETTER ALPHA}"),
-                                  '0\xa0Bytes')
+        with self.settings(USE_L10N=True), translation.override('de', deactivate=True):
+            self.assertEqual(filesizeformat(1023), '1023\xa0Bytes')
+            self.assertEqual(filesizeformat(1024), '1,0\xa0KB')
+            self.assertEqual(filesizeformat(10*1024), '10,0\xa0KB')
+            self.assertEqual(filesizeformat(1024*1024-1), '1024,0\xa0KB')
+            self.assertEqual(filesizeformat(1024*1024), '1,0\xa0MB')
+            self.assertEqual(filesizeformat(1024*1024*50), '50,0\xa0MB')
+            self.assertEqual(filesizeformat(1024*1024*1024-1), '1024,0\xa0MB')
+            self.assertEqual(filesizeformat(1024*1024*1024), '1,0\xa0GB')
+            self.assertEqual(filesizeformat(1024*1024*1024*1024), '1,0\xa0TB')
+            self.assertEqual(filesizeformat(1024*1024*1024*1024*1024),
+                              '1,0\xa0PB')
+            self.assertEqual(filesizeformat(1024*1024*1024*1024*1024*2000),
+                              '2000,0\xa0PB')
+            self.assertEqual(filesizeformat(complex(1,-1)), '0\xa0Bytes')
+            self.assertEqual(filesizeformat(""), '0\xa0Bytes')
+            self.assertEqual(filesizeformat("\N{GREEK SMALL LETTER ALPHA}"),
+                              '0\xa0Bytes')

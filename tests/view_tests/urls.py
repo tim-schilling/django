@@ -49,6 +49,7 @@ urlpatterns = patterns('',
     (r'raises400/$', views.raises400),
     (r'raises403/$', views.raises403),
     (r'raises404/$', views.raises404),
+    (r'raises500/$', views.raises500),
 
     # i18n views
     (r'^i18n/', include('django.conf.urls.i18n')),
@@ -67,4 +68,5 @@ urlpatterns += patterns('view_tests.views',
     url(r'view_exception/(?P<n>\d+)/$', 'view_exception', name='view_exception'),
     url(r'template_exception/(?P<n>\d+)/$', 'template_exception', name='template_exception'),
     url(r'^raises_template_does_not_exist/(?P<path>.+)$', 'raises_template_does_not_exist', name='raises_template_does_not_exist'),
+    url(r'^render_no_template/$', 'render_no_template', name='render_no_template'),
 )

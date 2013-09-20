@@ -1,10 +1,6 @@
 import itertools
 import os
 import re
-try:
-    from urllib.parse import urlparse, ParseResult
-except ImportError:     # Python 2
-    from urlparse import urlparse, ParseResult
 
 from django.conf import global_settings, settings
 from django.contrib.sites.models import Site, RequestSite
@@ -15,6 +11,7 @@ from django.core.urlresolvers import reverse, NoReverseMatch
 from django.http import QueryDict, HttpRequest
 from django.utils.encoding import force_text
 from django.utils.http import urlquote
+from django.utils.six.moves.urllib.parse import urlparse, ParseResult
 from django.utils._os import upath
 from django.test import TestCase
 from django.test.utils import override_settings, patch_logger
@@ -446,7 +443,8 @@ class LoginTest(AuthViewsTestCase):
         for bad_url in ('http://example.com',
                         'https://example.com',
                         'ftp://exampel.com',
-                        '//example.com'):
+                        '//example.com',
+                        'javascript:alert("XSS")'):
 
             nasty_url = '%(url)s?%(next)s=%(bad_url)s' % {
                 'url': login_url,
@@ -467,6 +465,7 @@ class LoginTest(AuthViewsTestCase):
                          '/view?param=ftp://exampel.com',
                          'view/?param=//example.com',
                          'https:///',
+                         'HTTPS:///',
                          '//testserver/',
                          '/url%20with%20spaces/'):  # see ticket #12534
             safe_url = '%(url)s?%(next)s=%(good_url)s' % {
@@ -661,7 +660,8 @@ class LogoutTest(AuthViewsTestCase):
         for bad_url in ('http://example.com',
                         'https://example.com',
                         'ftp://exampel.com',
-                        '//example.com'):
+                        '//example.com',
+                        'javascript:alert("XSS")'):
             nasty_url = '%(url)s?%(next)s=%(bad_url)s' % {
                 'url': logout_url,
                 'next': REDIRECT_FIELD_NAME,
@@ -680,6 +680,7 @@ class LogoutTest(AuthViewsTestCase):
                          '/view?param=ftp://exampel.com',
                          'view/?param=//example.com',
                          'https:///',
+                         'HTTPS:///',
                          '//testserver/',
                          '/url%20with%20spaces/'):  # see ticket #12534
             safe_url = '%(url)s?%(next)s=%(good_url)s' % {

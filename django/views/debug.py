@@ -11,6 +11,7 @@ from django.http import (HttpResponse, HttpResponseServerError,
     HttpResponseNotFound, HttpRequest, build_request_repr)
 from django.template import Template, Context, TemplateDoesNotExist
 from django.template.defaultfilters import force_escape, pprint
+from django.utils.datastructures import MultiValueDict
 from django.utils.html import escape
 from django.utils.encoding import force_bytes, smart_text
 from django.utils.module_loading import import_by_path
@@ -118,6 +119,20 @@ class SafeExceptionReporterFilter(ExceptionReporterFilter):
         """
         return settings.DEBUG is False
 
+    def get_cleansed_multivaluedict(self, request, multivaluedict):
+        """
+        Replaces the keys in a MultiValueDict marked as sensitive with stars.
+        This mitigates leaking sensitive POST parameters if something like
+        request.POST['nonexistent_key'] throws an exception (#21098).
+        """
+        sensitive_post_parameters = getattr(request, 'sensitive_post_parameters', [])
+        if self.is_active(request) and sensitive_post_parameters:
+            multivaluedict = multivaluedict.copy()
+            for param in sensitive_post_parameters:
+                if param in multivaluedict:
+                    multivaluedict[param] = CLEANSED_SUBSTITUTE
+        return multivaluedict
+
     def get_post_parameters(self, request):
         """
         Replaces the values of POST parameters marked as sensitive with
@@ -142,6 +157,15 @@ class SafeExceptionReporterFilter(ExceptionReporterFilter):
                     return cleansed
             else:
                 return request.POST
+
+    def cleanse_special_types(self, request, value):
+        if isinstance(value, HttpRequest):
+            # Cleanse the request's POST parameters.
+            value = self.get_request_repr(value)
+        elif isinstance(value, MultiValueDict):
+            # Cleanse MultiValueDicts (request.POST is the one we usually care about)
+            value = self.get_cleansed_multivaluedict(request, value)
+        return value
 
     def get_traceback_frame_variables(self, request, tb_frame):
         """
@@ -173,17 +197,14 @@ class SafeExceptionReporterFilter(ExceptionReporterFilter):
                 for name, value in tb_frame.f_locals.items():
                     if name in sensitive_variables:
                         value = CLEANSED_SUBSTITUTE
-                    elif isinstance(value, HttpRequest):
-                        # Cleanse the request's POST parameters.
-                        value = self.get_request_repr(value)
+                    else:
+                        value = self.cleanse_special_types(request, value)
                     cleansed[name] = value
         else:
-            # Potentially cleanse only the request if it's one of the frame variables.
+            # Potentially cleanse the request and any MultiValueDicts if they
+            # are one of the frame variables.
             for name, value in tb_frame.f_locals.items():
-                if isinstance(value, HttpRequest):
-                    # Cleanse the request's POST parameters.
-                    value = self.get_request_repr(value)
-                cleansed[name] = value
+                cleansed[name] = self.cleanse_special_types(request, value)
 
         if (tb_frame.f_code.co_name == 'sensitive_variables_wrapper'
             and 'sensitive_variables_wrapper' in tb_frame.f_locals):
@@ -227,12 +248,16 @@ class ExceptionReporter(object):
         return "File exists"
 
     def get_traceback_data(self):
-        "Return a Context instance containing traceback information."
+        """Return a dictionary containing traceback information."""
 
         if self.exc_type and issubclass(self.exc_type, TemplateDoesNotExist):
             from django.template.loader import template_source_loaders
             self.template_does_not_exist = True
             self.loader_debug_info = []
+            # If the template_source_loaders haven't been populated yet, you need
+            # to provide an empty list for this for loop to not fail.
+            if template_source_loaders is None:
+                template_source_loaders = []
             for loader in template_source_loaders:
                 try:
                     source_list_func = loader.get_template_sources
@@ -295,13 +320,13 @@ class ExceptionReporter(object):
     def get_traceback_html(self):
         "Return HTML version of debug 500 HTTP error page."
         t = Template(TECHNICAL_500_TEMPLATE, name='Technical 500 template')
-        c = Context(self.get_traceback_data())
+        c = Context(self.get_traceback_data(), use_l10n=False)
         return t.render(c)
 
     def get_traceback_text(self):
         "Return plain text version of debug 500 HTTP error page."
         t = Template(TECHNICAL_500_TEXT_TEMPLATE, name='Technical 500 template')
-        c = Context(self.get_traceback_data(), autoescape=False)
+        c = Context(self.get_traceback_data(), autoescape=False, use_l10n=False)
         return t.render(c)
 
     def get_template_exception_info(self):

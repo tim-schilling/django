@@ -7,11 +7,6 @@ import mimetypes
 from copy import copy
 from importlib import import_module
 from io import BytesIO
-try:
-    from urllib.parse import unquote, urlparse, urlsplit
-except ImportError:     # Python 2
-    from urllib import unquote
-    from urlparse import urlparse, urlsplit
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, get_user_model
@@ -28,6 +23,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlencode
 from django.utils.itercompat import is_iterable
 from django.utils import six
+from django.utils.six.moves.urllib.parse import unquote, urlparse, urlsplit
 from django.test.utils import ContextList
 
 __all__ = ('Client', 'RequestFactory', 'encode_file', 'encode_multipart')
@@ -36,6 +32,7 @@ __all__ = ('Client', 'RequestFactory', 'encode_file', 'encode_multipart')
 BOUNDARY = 'BoUnDaRyStRiNg'
 MULTIPART_CONTENT = 'multipart/form-data; boundary=%s' % BOUNDARY
 CONTENT_TYPE_RE = re.compile('.*; charset=([\w\d-]+);?')
+
 
 class FakePayload(object):
     """
@@ -94,8 +91,6 @@ class ClientHandler(BaseHandler):
         super(ClientHandler, self).__init__(*args, **kwargs)
 
     def __call__(self, environ):
-        from django.conf import settings
-
         # Set up middleware if needed. We couldn't do this earlier, because
         # settings weren't available.
         if self._request_middleware is None:
@@ -123,6 +118,7 @@ class ClientHandler(BaseHandler):
 
         return response
 
+
 def store_rendered_templates(store, signal, sender, template, context, **kwargs):
     """
     Stores templates and contexts that are rendered.
@@ -132,6 +128,7 @@ def store_rendered_templates(store, signal, sender, template, context, **kwargs)
     """
     store.setdefault('templates', []).append(template)
     store.setdefault('context', ContextList()).append(copy(context))
+
 
 def encode_multipart(boundary, data):
     """
@@ -178,6 +175,7 @@ def encode_multipart(boundary, data):
     ])
     return b'\r\n'.join(lines)
 
+
 def encode_file(boundary, key, file):
     to_bytes = lambda s: force_bytes(s, settings.DEFAULT_CHARSET)
     if hasattr(file, 'content_type'):
@@ -189,8 +187,8 @@ def encode_file(boundary, key, file):
         content_type = 'application/octet-stream'
     return [
         to_bytes('--%s' % boundary),
-        to_bytes('Content-Disposition: form-data; name="%s"; filename="%s"' \
-            % (key, os.path.basename(file.name))),
+        to_bytes('Content-Disposition: form-data; name="%s"; filename="%s"'
+                 % (key, os.path.basename(file.name))),
         to_bytes('Content-Type: %s' % content_type),
         b'',
         file.read()
@@ -274,14 +272,11 @@ class RequestFactory(object):
     def get(self, path, data={}, **extra):
         "Construct a GET request."
 
-        parsed = urlparse(path)
         r = {
-            'PATH_INFO':       self._get_path(parsed),
-            'QUERY_STRING':    urlencode(data, doseq=True) or force_str(parsed[4]),
-            'REQUEST_METHOD':  str('GET'),
+            'QUERY_STRING': urlencode(data, doseq=True),
         }
         r.update(extra)
-        return self.request(**r)
+        return self.generic('GET', path, **r)
 
     def post(self, path, data={}, content_type=MULTIPART_CONTENT,
              **extra):
@@ -289,32 +284,19 @@ class RequestFactory(object):
 
         post_data = self._encode_data(data, content_type)
 
-        parsed = urlparse(path)
-        r = {
-            'CONTENT_LENGTH': len(post_data),
-            'CONTENT_TYPE':   content_type,
-            'PATH_INFO':      self._get_path(parsed),
-            'QUERY_STRING':   force_str(parsed[4]),
-            'REQUEST_METHOD': str('POST'),
-            'wsgi.input':     FakePayload(post_data),
-        }
-        r.update(extra)
-        return self.request(**r)
+        return self.generic('POST', path, post_data, content_type, **extra)
 
     def head(self, path, data={}, **extra):
         "Construct a HEAD request."
 
-        parsed = urlparse(path)
         r = {
-            'PATH_INFO':       self._get_path(parsed),
-            'QUERY_STRING':    urlencode(data, doseq=True) or force_str(parsed[4]),
-            'REQUEST_METHOD':  str('HEAD'),
+            'QUERY_STRING': urlencode(data, doseq=True),
         }
         r.update(extra)
-        return self.request(**r)
+        return self.generic('HEAD', path, **r)
 
     def options(self, path, data='', content_type='application/octet-stream',
-            **extra):
+                **extra):
         "Construct an OPTIONS request."
         return self.generic('OPTIONS', path, data, content_type, **extra)
 
@@ -324,22 +306,22 @@ class RequestFactory(object):
         return self.generic('PUT', path, data, content_type, **extra)
 
     def patch(self, path, data='', content_type='application/octet-stream',
-            **extra):
+              **extra):
         "Construct a PATCH request."
         return self.generic('PATCH', path, data, content_type, **extra)
 
     def delete(self, path, data='', content_type='application/octet-stream',
-            **extra):
+               **extra):
         "Construct a DELETE request."
         return self.generic('DELETE', path, data, content_type, **extra)
 
     def generic(self, method, path,
                 data='', content_type='application/octet-stream', **extra):
+        """Constructs an arbitrary HTTP request."""
         parsed = urlparse(path)
         data = force_bytes(data, settings.DEFAULT_CHARSET)
         r = {
             'PATH_INFO':      self._get_path(parsed),
-            'QUERY_STRING':   force_str(parsed[4]),
             'REQUEST_METHOD': str(method),
         }
         if data:
@@ -349,7 +331,15 @@ class RequestFactory(object):
                 'wsgi.input':     FakePayload(data),
             })
         r.update(extra)
+        # If QUERY_STRING is absent or empty, we want to extract it from the URL.
+        if not r.get('QUERY_STRING'):
+            query_string = force_bytes(parsed[4])
+            # WSGI requires latin-1 encoded strings. See get_path_info().
+            if six.PY3:
+                query_string = query_string.decode('iso-8859-1')
+            r['QUERY_STRING'] = query_string
         return self.request(**r)
+
 
 class Client(RequestFactory):
     """
@@ -391,7 +381,6 @@ class Client(RequestFactory):
                 return engine.SessionStore(cookie.value)
         return {}
     session = property(_session)
-
 
     def request(self, **request):
         """
@@ -485,12 +474,11 @@ class Client(RequestFactory):
         return response
 
     def options(self, path, data='', content_type='application/octet-stream',
-            follow=False, **extra):
+                follow=False, **extra):
         """
         Request a response from the server using OPTIONS.
         """
-        response = super(Client, self).options(path,
-                data=data, content_type=content_type, **extra)
+        response = super(Client, self).options(path, data=data, content_type=content_type, **extra)
         if follow:
             response = self._handle_redirects(response, **extra)
         return response
@@ -500,14 +488,13 @@ class Client(RequestFactory):
         """
         Send a resource to the server using PUT.
         """
-        response = super(Client, self).put(path,
-                data=data, content_type=content_type, **extra)
+        response = super(Client, self).put(path, data=data, content_type=content_type, **extra)
         if follow:
             response = self._handle_redirects(response, **extra)
         return response
 
     def patch(self, path, data='', content_type='application/octet-stream',
-            follow=False, **extra):
+              follow=False, **extra):
         """
         Send a resource to the server using PATCH.
         """
@@ -518,12 +505,12 @@ class Client(RequestFactory):
         return response
 
     def delete(self, path, data='', content_type='application/octet-stream',
-            follow=False, **extra):
+               follow=False, **extra):
         """
         Send a DELETE request to the server.
         """
-        response = super(Client, self).delete(path,
-                data=data, content_type=content_type, **extra)
+        response = super(Client, self).delete(
+            path, data=data, content_type=content_type, **extra)
         if follow:
             response = self._handle_redirects(response, **extra)
         return response

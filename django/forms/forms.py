@@ -10,7 +10,7 @@ import warnings
 
 from django.core.exceptions import ValidationError
 from django.forms.fields import Field, FileField
-from django.forms.util import flatatt, ErrorDict, ErrorList
+from django.forms.utils import flatatt, ErrorDict, ErrorList
 from django.forms.widgets import Media, media_property, TextInput, Textarea
 from django.utils.html import conditional_escape, format_html
 from django.utils.encoding import smart_text, force_text, python_2_unicode_compatible
@@ -185,7 +185,8 @@ class BaseForm(object):
                     'label': force_text(label),
                     'field': six.text_type(bf),
                     'help_text': help_text,
-                    'html_class_attr': html_class_attr
+                    'html_class_attr': html_class_attr,
+                    'field_name': bf.html_name,
                 })
 
         if top_errors:
@@ -434,7 +435,9 @@ class BoundField(object):
         This really is only useful for RadioSelect widgets, so that you can
         iterate over individual radio buttons in a template.
         """
-        for subwidget in self.field.widget.subwidgets(self.html_name, self.value()):
+        id_ = self.field.widget.attrs.get('id') or self.auto_id
+        attrs = {'id': id_} if id_ else {}
+        for subwidget in self.field.widget.subwidgets(self.html_name, self.value(), attrs):
             yield subwidget
 
     def __len__(self):
@@ -524,9 +527,9 @@ class BoundField(object):
         """
         contents = contents or self.label
         # Only add the suffix if the label does not end in punctuation.
+        label_suffix = label_suffix if label_suffix is not None else self.form.label_suffix
         # Translators: If found as last label character, these punctuation
         # characters will prevent the default label_suffix to be appended to the label
-        label_suffix = label_suffix if label_suffix is not None else self.form.label_suffix
         if label_suffix and contents and contents[-1] not in _(':?.!'):
             contents = format_html('{0}{1}', contents, label_suffix)
         widget = self.field.widget

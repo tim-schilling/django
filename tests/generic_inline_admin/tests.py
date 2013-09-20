@@ -349,8 +349,8 @@ class GenericInlineModelAdminTest(TestCase):
 
     def test_get_formsets_with_inlines(self):
         """
-        Test to verify that get_formsets is called and triggers a deprecation warning when
-        get_formsets is overridden and it doesn't when it's not overridden.
+        get_formsets() triggers a deprecation warning when get_formsets is
+        overridden.
         """
         class MediaForm(ModelForm):
             class Meta:
@@ -371,7 +371,6 @@ class GenericInlineModelAdminTest(TestCase):
                 return []
 
         with warnings.catch_warnings(record=True) as w:
-            # Cause all warnings to always be triggered.
             warnings.simplefilter("always")
             ma = EpisodeAdmin(Episode, self.site)
             list(ma.get_formsets_with_inlines(request))
@@ -385,7 +384,6 @@ class GenericInlineModelAdminTest(TestCase):
                 MediaInline
             ]
         with warnings.catch_warnings(record=True) as w:
-            # Cause all warnings to always be triggered.
             warnings.simplefilter("always")
             ma = EpisodeAdmin(Episode, self.site)
             list(ma.get_formsets_with_inlines(request))
@@ -393,7 +391,7 @@ class GenericInlineModelAdminTest(TestCase):
 
     def test_get_formsets_with_inlines_returns_tuples(self):
         """
-        Tests to ensure that the get_formsets_with_inlines method returns the correct tuples.
+        Ensure that get_formsets_with_inlines() returns the correct tuples.
         """
         class MediaForm(ModelForm):
             class Meta:
@@ -425,11 +423,12 @@ class GenericInlineModelAdminTest(TestCase):
             def get_formsets(self, request, obj=None):
                 # Catch the deprecation warning to force the usage of get_formsets
                 with warnings.catch_warnings(record=True) as w:
-                    # Cause all warnings to always be triggered.
                     warnings.simplefilter("always")
                     return super(EpisodeAdmin, self).get_formsets(request, obj)
 
         ma = EpisodeAdmin(Episode, self.site)
         inlines = ma.get_inline_instances(request)
-        for (formset, inline), other_inline in zip(ma.get_formsets_with_inlines(request), inlines):
-            self.assertIsInstance(formset, other_inline.get_formset(request).__class__)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            for (formset, inline), other_inline in zip(ma.get_formsets_with_inlines(request), inlines):
+                self.assertIsInstance(formset, other_inline.get_formset(request).__class__)

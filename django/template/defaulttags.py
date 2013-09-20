@@ -1,6 +1,7 @@
 """Default tags used by the template system, available to all templates."""
 from __future__ import unicode_literals
 
+import os
 import sys
 import re
 from datetime import datetime
@@ -16,7 +17,7 @@ from django.template.base import (Node, NodeList, Template, Context, Library,
     render_value_in_context)
 from django.template.smartif import IfParser, Literal
 from django.template.defaultfilters import date
-from django.utils.encoding import smart_text
+from django.utils.encoding import force_text, smart_text
 from django.utils.safestring import mark_safe
 from django.utils.html import format_html
 from django.utils import six
@@ -54,7 +55,6 @@ class CsrfTokenNode(Node):
         else:
             # It's very probable that the token is missing because of
             # misconfiguration, so we raise a warning
-            from django.conf import settings
             if settings.DEBUG:
                 warnings.warn("A {% csrf_token %} was used in a template, but the context did not provide the value.  This is usually caused by not using RequestContext.")
             return ''
@@ -154,7 +154,7 @@ class ForNode(Node):
             len_values = len(values)
             if len_values < 1:
                 return self.nodelist_empty.render(context)
-            nodelist = NodeList()
+            nodelist = []
             if self.is_reversed:
                 values = reversed(values)
             unpack = len(self.loopvars) > 1
@@ -205,7 +205,7 @@ class ForNode(Node):
                     # don't want to leave any vars from the previous loop on the
                     # context.
                     context.pop()
-        return nodelist.render(context)
+        return mark_safe(''.join(force_text(n) for n in nodelist))
 
 class IfChangedNode(Node):
     child_nodelists = ('nodelist_true', 'nodelist_false')
@@ -329,6 +329,7 @@ class RegroupNode(Node):
         return ''
 
 def include_is_allowed(filepath):
+    filepath = os.path.abspath(filepath)
     for root in settings.ALLOWED_INCLUDE_ROOTS:
         if filepath.startswith(root):
             return True
@@ -410,8 +411,8 @@ class URLNode(Node):
     def render(self, context):
         from django.core.urlresolvers import reverse, NoReverseMatch
         args = [arg.resolve(context) for arg in self.args]
-        kwargs = dict([(smart_text(k, 'ascii'), v.resolve(context))
-                       for k, v in self.kwargs.items()])
+        kwargs = dict((smart_text(k, 'ascii'), v.resolve(context))
+                       for k, v in self.kwargs.items())
 
         view_name = self.view_name.resolve(context)
 
@@ -458,10 +459,11 @@ class VerbatimNode(Node):
         return self.content
 
 class WidthRatioNode(Node):
-    def __init__(self, val_expr, max_expr, max_width):
+    def __init__(self, val_expr, max_expr, max_width, asvar=None):
         self.val_expr = val_expr
         self.max_expr = max_expr
         self.max_width = max_width
+        self.asvar = asvar
 
     def render(self, context):
         try:
@@ -480,7 +482,13 @@ class WidthRatioNode(Node):
             return '0'
         except (ValueError, TypeError):
             return ''
-        return str(int(round(ratio)))
+        result = str(int(round(ratio)))
+
+        if self.asvar:
+            context[self.asvar] = result
+            return ''
+        else:
+            return result
 
 class WithNode(Node):
     def __init__(self, var, name, nodelist, extra_context=None):
@@ -495,8 +503,8 @@ class WithNode(Node):
         return "<WithNode>"
 
     def render(self, context):
-        values = dict([(key, val.resolve(context)) for key, val in
-                       six.iteritems(self.extra_context)])
+        values = dict((key, val.resolve(context)) for key, val in
+                       six.iteritems(self.extra_context))
         with context.push(**values):
             return self.nodelist.render(context)
 
@@ -1353,20 +1361,34 @@ def widthratio(parser, token):
 
     For example::
 
-        <img src='bar.gif' height='10' width='{% widthratio this_value max_value max_width %}' />
+        <img src="bar.png" alt="Bar"
+             height="10" width="{% widthratio this_value max_value max_width %}" />
 
     If ``this_value`` is 175, ``max_value`` is 200, and ``max_width`` is 100,
     the image in the above example will be 88 pixels wide
     (because 175/200 = .875; .875 * 100 = 87.5 which is rounded up to 88).
+
+    In some cases you might want to capture the result of widthratio in a
+    variable. It can be useful for instance in a blocktrans like this::
+
+        {% widthratio this_value max_value max_width as width %}
+        {% blocktrans %}The width is: {{ width }}{% endblocktrans %}
     """
     bits = token.split_contents()
-    if len(bits) != 4:
-        raise TemplateSyntaxError("widthratio takes three arguments")
-    tag, this_value_expr, max_value_expr, max_width = bits
+    if len(bits) == 4:
+        tag, this_value_expr, max_value_expr, max_width = bits
+        asvar = None
+    elif len(bits) == 6:
+        tag, this_value_expr, max_value_expr, max_width, as_, asvar = bits
+        if as_ != 'as':
+            raise TemplateSyntaxError("Invalid syntax in widthratio tag. Expecting 'as' keyword")
+    else:
+        raise TemplateSyntaxError("widthratio takes at least three arguments")
 
     return WidthRatioNode(parser.compile_filter(this_value_expr),
                           parser.compile_filter(max_value_expr),
-                          parser.compile_filter(max_width))
+                          parser.compile_filter(max_width),
+                          asvar=asvar)
 
 @register.tag('with')
 def do_with(parser, token):

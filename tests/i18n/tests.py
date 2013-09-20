@@ -89,7 +89,7 @@ class TranslationTests(TransRealMixin, TestCase):
         s4 = ugettext_lazy('Some other string')
         self.assertEqual(False, s == s4)
 
-        if not six.PY3:
+        if six.PY2:
             # On Python 2, gettext_lazy should not transform a bytestring to unicode
             self.assertEqual(gettext_lazy(b"test").upper(), b"TEST")
 
@@ -728,9 +728,8 @@ class FormattingTests(TransRealMixin, TestCase):
         with translation.override('de-at', deactivate=True):
             de_format_mod = import_module('django.conf.locale.de.formats')
             self.assertEqual(list(iter_format_modules('de')), [de_format_mod])
-            with self.settings(FORMAT_MODULE_PATH='i18n.other.locale'):
-                test_de_format_mod = import_module('i18n.other.locale.de.formats')
-                self.assertEqual(list(iter_format_modules('de')), [test_de_format_mod, de_format_mod])
+            test_de_format_mod = import_module('i18n.other.locale.de.formats')
+            self.assertEqual(list(iter_format_modules('de', 'i18n.other.locale')), [test_de_format_mod, de_format_mod])
 
     def test_iter_format_modules_stability(self):
         """
@@ -746,11 +745,11 @@ class FormattingTests(TransRealMixin, TestCase):
             self.assertEqual('.', get_format('DECIMAL_SEPARATOR', lang='en'))
 
     def test_get_format_modules_stability(self):
-        with self.settings(FORMAT_MODULE_PATH='i18n.other.locale'):
-            with translation.override('de', deactivate=True):
-                old = str("%r") % get_format_modules(reverse=True)
-                new = str("%r") % get_format_modules(reverse=True) # second try
-                self.assertEqual(new, old, 'Value returned by get_formats_modules() must be preserved between calls.')
+        with self.settings(FORMAT_MODULE_PATH='i18n.other.locale'), \
+                translation.override('de', deactivate=True):
+            old = str("%r") % get_format_modules(reverse=True)
+            new = str("%r") % get_format_modules(reverse=True) # second try
+            self.assertEqual(new, old, 'Value returned by get_formats_modules() must be preserved between calls.')
 
     def test_localize_templatetag_and_filter(self):
         """
@@ -850,6 +849,7 @@ class MiscTests(TransRealMixin, TestCase):
         self.assertEqual([], p('de;q=0.a'))
         self.assertEqual([], p('12-345'))
         self.assertEqual([], p(''))
+        self.assertEqual([], p('en; q=1,'))
 
     def test_parse_literal_http_header(self):
         """
@@ -1062,9 +1062,8 @@ class MultipleLocaleActivationTests(TransRealMixin, TestCase):
     def test_multiple_locale_filter(self):
         with translation.override('de'):
             t = Template("{% load i18n %}{{ 0|yesno:_('yes,no,maybe') }}")
-        with translation.override(self._old_language):
-            with translation.override('nl'):
-                self.assertEqual(t.render(Context({})), 'nee')
+        with translation.override(self._old_language), translation.override('nl'):
+            self.assertEqual(t.render(Context({})), 'nee')
 
     def test_multiple_locale_filter_deactivate(self):
         with translation.override('de', deactivate=True):
@@ -1083,9 +1082,8 @@ class MultipleLocaleActivationTests(TransRealMixin, TestCase):
     def test_multiple_locale(self):
         with translation.override('de'):
             t = Template("{{ _('No') }}")
-        with translation.override(self._old_language):
-            with translation.override('nl'):
-                self.assertEqual(t.render(Context({})), 'Nee')
+        with translation.override(self._old_language), translation.override('nl'):
+            self.assertEqual(t.render(Context({})), 'Nee')
 
     def test_multiple_locale_deactivate(self):
         with translation.override('de', deactivate=True):
@@ -1104,9 +1102,8 @@ class MultipleLocaleActivationTests(TransRealMixin, TestCase):
     def test_multiple_locale_loadi18n(self):
         with translation.override('de'):
             t = Template("{% load i18n %}{{ _('No') }}")
-        with translation.override(self._old_language):
-            with translation.override('nl'):
-                self.assertEqual(t.render(Context({})), 'Nee')
+        with translation.override(self._old_language), translation.override('nl'):
+            self.assertEqual(t.render(Context({})), 'Nee')
 
     def test_multiple_locale_loadi18n_deactivate(self):
         with translation.override('de', deactivate=True):
@@ -1125,9 +1122,8 @@ class MultipleLocaleActivationTests(TransRealMixin, TestCase):
     def test_multiple_locale_trans(self):
         with translation.override('de'):
             t = Template("{% load i18n %}{% trans 'No' %}")
-        with translation.override(self._old_language):
-            with translation.override('nl'):
-                self.assertEqual(t.render(Context({})), 'Nee')
+        with translation.override(self._old_language), translation.override('nl'):
+            self.assertEqual(t.render(Context({})), 'Nee')
 
     def test_multiple_locale_deactivate_trans(self):
         with translation.override('de', deactivate=True):
@@ -1146,9 +1142,8 @@ class MultipleLocaleActivationTests(TransRealMixin, TestCase):
     def test_multiple_locale_btrans(self):
         with translation.override('de'):
             t = Template("{% load i18n %}{% blocktrans %}No{% endblocktrans %}")
-        with translation.override(self._old_language):
-            with translation.override('nl'):
-                self.assertEqual(t.render(Context({})), 'Nee')
+        with translation.override(self._old_language), translation.override('nl'):
+            self.assertEqual(t.render(Context({})), 'Nee')
 
     def test_multiple_locale_deactivate_btrans(self):
         with translation.override('de', deactivate=True):

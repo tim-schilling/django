@@ -254,6 +254,9 @@ class FieldsTests(SimpleTestCase):
         self.assertRaisesMessage(ValidationError, "'Enter a number.'", f.clean, '1.0a')
         self.assertEqual(f.max_value, None)
         self.assertEqual(f.min_value, None)
+        self.assertRaisesMessage(ValidationError, "'Enter a number.'", f.clean, 'Infinity')
+        self.assertRaisesMessage(ValidationError, "'Enter a number.'", f.clean, 'NaN')
+        self.assertRaisesMessage(ValidationError, "'Enter a number.'", f.clean, '-Inf')
 
     def test_floatfield_2(self):
         f = FloatField(required=False)
@@ -286,11 +289,10 @@ class FieldsTests(SimpleTestCase):
         n = 4.35
         self.assertFalse(f._has_changed(n, '4.3500'))
 
-        with translation.override('fr'):
-            with self.settings(USE_L10N=True):
-                f = FloatField(localize=True)
-                localized_n = formats.localize_input(n)  # -> '4,35' in French
-                self.assertFalse(f._has_changed(n, localized_n))
+        with translation.override('fr'), self.settings(USE_L10N=True):
+            f = FloatField(localize=True)
+            localized_n = formats.localize_input(n)  # -> '4,35' in French
+            self.assertFalse(f._has_changed(n, localized_n))
 
     # DecimalField ################################################################
 
@@ -399,11 +401,10 @@ class FieldsTests(SimpleTestCase):
         self.assertFalse(f._has_changed(d, '0.10'))
         self.assertTrue(f._has_changed(d, '0.101'))
 
-        with translation.override('fr'):
-            with self.settings(USE_L10N=True):
-                f = DecimalField(max_digits=2, decimal_places=2, localize=True)
-                localized_d = formats.localize_input(d)  # -> '0,1' in French
-                self.assertFalse(f._has_changed(d, localized_d))
+        with translation.override('fr'), self.settings(USE_L10N=True):
+            f = DecimalField(max_digits=2, decimal_places=2, localize=True)
+            localized_d = formats.localize_input(d)  # -> '0,1' in French
+            self.assertFalse(f._has_changed(d, localized_d))
 
     # DateField ###################################################################
 
@@ -1142,6 +1143,7 @@ class FieldsTests(SimpleTestCase):
                 ('/django/forms/formsets.py', 'formsets.py'),
                 ('/django/forms/models.py', 'models.py'),
                 ('/django/forms/util.py', 'util.py'),
+                ('/django/forms/utils.py', 'utils.py'),
                 ('/django/forms/widgets.py', 'widgets.py')
             ]
         for exp, got in zip(expected, fix_os_paths(f.choices)):
@@ -1162,6 +1164,7 @@ class FieldsTests(SimpleTestCase):
                 ('/django/forms/formsets.py', 'formsets.py'),
                 ('/django/forms/models.py', 'models.py'),
                 ('/django/forms/util.py', 'util.py'),
+                ('/django/forms/utils.py', 'utils.py'),
                 ('/django/forms/widgets.py', 'widgets.py')
             ]
         for exp, got in zip(expected, fix_os_paths(f.choices)):
@@ -1182,6 +1185,7 @@ class FieldsTests(SimpleTestCase):
                 ('/django/forms/formsets.py', 'formsets.py'),
                 ('/django/forms/models.py', 'models.py'),
                 ('/django/forms/util.py', 'util.py'),
+                ('/django/forms/utils.py', 'utils.py'),
                 ('/django/forms/widgets.py', 'widgets.py')
             ]
         for exp, got in zip(expected, fix_os_paths(f.choices)):
