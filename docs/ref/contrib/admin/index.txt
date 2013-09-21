@@ -1364,8 +1364,6 @@ templates used by the :class:`ModelAdmin` views:
                 return super(MyModelAdmin, self).get_form(request, obj, **kwargs)
 
 .. method:: ModelAdmin.get_formsets(self, request, obj=None)
-.. deprecated:: 1.7
-    get_formsets is deprecated and will be removed in Django 1.9.
 
     .. deprecated:: 1.7
         Use :meth:`get_formsets_with_inlines()` instead.
