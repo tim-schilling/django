@@ -7,7 +7,8 @@ from django.contrib.admin.options import StackedInline, TabularInline
 from django.contrib.admin.sites import AdminSite, site
 from django.contrib.admin.filters import (ListFilter, SimpleListFilter,
     FieldListFilter, BooleanFieldListFilter, RelatedFieldListFilter,
-    ChoicesFieldListFilter, DateFieldListFilter, AllValuesFieldListFilter)
+    ChoicesFieldListFilter, DateFieldListFilter, AllValuesFieldListFilter,
+    ComparisonFieldListFilter)
 from django.utils.module_loading import autodiscover_modules
 
 

@@ -3,7 +3,7 @@ from __future__ import unicode_literals
 import datetime
 
 from django.contrib.admin import (site, ModelAdmin, SimpleListFilter,
-    BooleanFieldListFilter)
+    BooleanFieldListFilter, ComparisonFieldListFilter)
 from django.contrib.admin.views.main import ChangeList
 from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User
@@ -127,6 +127,9 @@ class DecadeFilterBookAdminParameterEndsWith__In(ModelAdmin):
 
 class DecadeFilterBookAdminParameterEndsWith__Isnull(ModelAdmin):
     list_filter = (DecadeListFilterParameterEndsWith__Isnull,)
+
+class BookAdminWithComparisonFilter(ModelAdmin):
+    list_filter = [(('no', 103), ComparisonFieldListFilter), ]
 
 class EmployeeAdmin(ModelAdmin):
     list_display = ['name', 'department']
@@ -741,3 +744,72 @@ class ListFiltersTests(TestCase):
         self.assertEqual(choices[2]['display'], 'Design')
         self.assertEqual(choices[2]['selected'], False)
         self.assertEqual(choices[2]['query_string'], '?department__code__exact=DSN')
+
+    def test_comparison_filter_choices(self):
+        """
+        Verify the results of ComparisonFieldListFilter
+        refs: #18736
+        """
+        modeladmin = BookAdminWithComparisonFilter(Book, site)
+        request = self.request_factory.get('/', {})
+        changelist = self.get_changelist(request, Book, modeladmin)
+
+        # Make sure the correct queryset is returned
+        queryset = changelist.get_queryset(request)
+        self.assertEqual(list(queryset), [self.gipsy_book, self.django_book,
+            self.bio_book, self.djangonaut_book])
+
+        filterspec = changelist.get_filters(request)[0][-1]
+        self.assertEqual(force_text(filterspec.title), 'number')
+        choices = list(filterspec.choices(changelist))
+
+        self.assertEqual(choices[0]['display'], 'All')
+        self.assertEqual(choices[0]['selected'], True)
+        self.assertEqual(choices[0]['query_string'], '?')
+
+        self.assertEqual(choices[1]['display'], 'Greater than 103')
+        self.assertEqual(choices[1]['selected'], False)
+        self.assertEqual(choices[1]['query_string'], '?no__gt=103')
+
+        self.assertEqual(choices[2]['display'], 'Greater or equal to 103')
+        self.assertEqual(choices[2]['selected'], False)
+        self.assertEqual(choices[2]['query_string'], '?no__gte=103')
+
+        self.assertEqual(choices[3]['display'], 'Lesser than 103')
+        self.assertEqual(choices[3]['selected'], False)
+        self.assertEqual(choices[3]['query_string'], '?no__lt=103')
+
+        self.assertEqual(choices[4]['display'], 'Lesser or equal to 103')
+        self.assertEqual(choices[4]['selected'], False)
+        self.assertEqual(choices[4]['query_string'], '?no__lte=103')
+
+        request = self.request_factory.get('/', {'no__lte': '103'})
+        changelist = self.get_changelist(request, Book, modeladmin)
+
+        # Make sure the correct queryset is returned
+        queryset = changelist.get_queryset(request)
+        self.assertEqual(list(queryset), [self.django_book])
+
+        filterspec = changelist.get_filters(request)[0][-1]
+        self.assertEqual(force_text(filterspec.title), 'number')
+        choices = list(filterspec.choices(changelist))
+
+        self.assertEqual(choices[0]['display'], 'All')
+        self.assertEqual(choices[0]['selected'], False)
+        self.assertEqual(choices[0]['query_string'], '?')
+
+        self.assertEqual(choices[1]['display'], 'Greater than 103')
+        self.assertEqual(choices[1]['selected'], False)
+        self.assertEqual(choices[1]['query_string'], '?no__gt=103')
+
+        self.assertEqual(choices[2]['display'], 'Greater or equal to 103')
+        self.assertEqual(choices[2]['selected'], False)
+        self.assertEqual(choices[2]['query_string'], '?no__gte=103')
+
+        self.assertEqual(choices[3]['display'], 'Lesser than 103')
+        self.assertEqual(choices[3]['selected'], False)
+        self.assertEqual(choices[3]['query_string'], '?no__lt=103')
+
+        self.assertEqual(choices[4]['display'], 'Lesser or equal to 103')
+        self.assertEqual(choices[4]['selected'], True)
+        self.assertEqual(choices[4]['query_string'], '?no__lte=103')

@@ -259,6 +259,51 @@ FieldListFilter.register(lambda f: isinstance(f,
     (models.BooleanField, models.NullBooleanField)), BooleanFieldListFilter)
 
 
+class ComparisonFieldListFilter(FieldListFilter):
+    def __init__(self, field,
+                 request, params, model, model_admin, field_path):
+        field_path, value = field_path
+        self.lookup_val = value
+        self.field_generic = '%s__' % field_path
+        self.lookup_comparison = self.selected_comparison(request, field_path)
+        super(ComparisonFieldListFilter, self).__init__(field,
+            request, params, model, model_admin, field_path)
+
+    def expected_parameters(self):
+        return [self.field_generic]
+
+    def selected_comparison(self, request, field_path):
+        """
+        Fetches the selected comparison from the GET dictionary
+        """
+        for comparison in ["gt", "gte", "lt", "lte"]:
+            lookup_comparison = request.GET.get("%s__%s" %
+                                                (field_path, comparison))
+            if lookup_comparison:
+                return comparison
+        return None
+
+    def choices(self, cl):
+        yield {
+            'selected': self.lookup_comparison is None,
+            'query_string': cl.get_query_string({}, [self.field_generic]),
+            'display': _('All')
+        }
+        for lookup, title in (
+            ('gt', _('Greater than %s' % self.lookup_val)),
+            ('gte', _('Greater or equal to %s' % self.lookup_val)),
+            ('lt', _('Lesser than %s' % self.lookup_val)),
+            ('lte', _('Lesser or equal to %s' % self.lookup_val)),
+        ):
+            kwarg_key = "%s%s" % (self.field_generic, lookup)
+            yield {
+                'selected': self.lookup_comparison == lookup,
+                'query_string': cl.get_query_string({
+                    kwarg_key: self.lookup_val,
+                }, [self.field_generic]),
+                'display': title,
+            }
+
 class ChoicesFieldListFilter(FieldListFilter):
     def __init__(self, field, request, params, model, model_admin, field_path):
         self.lookup_kwarg = '%s__exact' % field_path

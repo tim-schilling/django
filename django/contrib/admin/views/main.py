@@ -162,6 +162,7 @@ class ChangeList(six.with_metaclass(RenameChangeListMethods)):
                         self.model, self.model_admin)
                 else:
                     field_path = None
+                    value = None
                     if isinstance(list_filter, (tuple, list)):
                         # This is a custom FieldListFilter class for a given field.
                         field, field_list_filter_class = list_filter
@@ -171,10 +172,18 @@ class ChangeList(six.with_metaclass(RenameChangeListMethods)):
                         # the type of the given field.
                         field, field_list_filter_class = list_filter, FieldListFilter.create
                     if not isinstance(field, models.Field):
-                        field_path = field
+                        if isinstance(field, (tuple, list)):
+                            field_path, value = field
+                        else:
+                            field_path = field
                         field = get_fields_from_path(self.model, field_path)[-1]
-                    spec = field_list_filter_class(field, request, lookup_params,
-                        self.model, self.model_admin, field_path=field_path)
+                    if value:
+                        spec = field_list_filter_class(field, request, lookup_params,
+                            self.model, self.model_admin,
+                            field_path=(field_path, value))
+                    else:
+                        spec = field_list_filter_class(field, request, lookup_params,
+                            self.model, self.model_admin, field_path=field_path)
                     # Check if we need to use distinct()
                     use_distinct = (use_distinct or
                                     lookup_needs_distinct(self.lookup_opts,

@@ -297,6 +297,8 @@ class ModelAdminValidator(BaseValidator):
                             raise ImproperlyConfigured("'%s.list_filter[%d][1]'"
                                 " is '%s' which is not of type FieldListFilter."
                                 % (cls.__name__, idx, list_filter_class.__name__))
+                        if isinstance(field, (tuple, list)):
+                            field, value = field
                     else:
                         # item is option #1
                         field = item
