@@ -128,3 +128,41 @@ class ExecutorTests(TransactionTestCase):
         self.assertEqual(plan, [])
         # Erase all the fake records
         executor.recorder.flush()
+
+
+    @override_settings(MIGRATION_MODULES={"migrations": "migrations.test_migrations"})
+    def test_run_initial_already_exists(self):
+        """
+        Tests running a simple set of migrations.
+        """
+        executor = MigrationExecutor(connection)
+        executor.recorder.flush()
+        # Let's look at the plan first and make sure it's up to scratch
+        plan = executor.migration_plan([("migrations", "0001_initial")])
+        self.assertEqual(
+            plan,
+            [
+                (executor.loader.graph.nodes["migrations", "0001_initial"], False),
+            ],
+        )
+        # Migrate the first migration.
+        executor.migrate([("migrations", "0001_initial")])
+        # Are the tables there now?
+        self.assertIn("migrations_author", connection.introspection.get_table_list(connection.cursor()))
+        # Rebuild the graph to reflect the new DB state
+        executor.loader.build_graph()
+        # Pretend to migration backwards to create a state of the table already existing, but hasn't been migrated.
+        executor.migrate([("migrations", None,)], fake=True)
+        # Is the table still there?
+        self.assertIn("migrations_author", connection.introspection.get_table_list(connection.cursor()))
+        # Rebuild the graph to reflect the new DB state
+        executor.loader.build_graph()
+        # Try migrating it again.
+        executor.migrate([("migrations", "0001_initial")])
+        # Is the table still there?
+        self.assertIn("migrations_author", connection.introspection.get_table_list(connection.cursor()))
+        executor.loader.build_graph()
+        # Pretend to migration back to None.
+        executor.migrate([("migrations", None,)])
+        # Is the table gone?
+        self.assertNotIn("migrations_author", connection.introspection.get_table_list(connection.cursor()))
