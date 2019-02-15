@@ -153,6 +153,9 @@ Management Commands
 * The new :option:`compilemessages --ignore` option allows ignoring specific
   directories when searching for ``.po`` files to compile.
 
+* The :djadmin:`showmigrations --list` option will show the applied
+  datetimes when ``--verbosity`` is set to 2 and above.
+
 Migrations
 ~~~~~~~~~~
 

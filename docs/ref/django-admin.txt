@@ -1083,7 +1083,8 @@ Shows all migrations in a project. You can choose from one of two formats:
 
 Lists all of the apps Django knows about, the migrations available for each
 app, and whether or not each migration is applied (marked by an ``[X]`` next to
-the migration name).
+the migration name). For a ``--verbosity`` of 2 and above, the applied datetimes
+will also be shown.
 
 Apps without migrations are also listed, but have ``(no migrations)`` printed
 under them.
@@ -1102,6 +1103,11 @@ apps may also be included.
 .. django-admin-option:: --database DATABASE
 
 Specifies the database to examine. Defaults to ``default``.
+
+.. versionchanged:: 3.0
+
+    Using the ``--list`` option with ``--verbosity`` level of 2 and above, the
+    applied datetimes will also be shown.
 
 ``sqlflush``
 ------------
